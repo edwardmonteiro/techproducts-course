@@ -1,0 +1,16 @@
+title: Techproducts
+description: Techproducts
+template:
+  repo: techproducts-template
+  name: techproducts
+before:
+  - type: createIssue
+    title: Welcome!
+    body: new-issue.md
+steps:
+  - title: First step
+    description: The first step in your course
+    event: issues.assigned
+    link: '{{ repoUrl }}'
+    actions:
+      - type: closeIssue
