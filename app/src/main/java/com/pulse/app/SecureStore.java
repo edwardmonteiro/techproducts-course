@@ -1,0 +1,9 @@
+package com.pulse.app;
+import android.content.*; import android.security.keystore.*; import android.util.Base64; import java.security.KeyStore; import javax.crypto.*; import javax.crypto.spec.GCMParameterSpec;
+public class SecureStore {
+ private static final String ALIAS="pulse_local_key"; private final SharedPreferences prefs;
+ public SecureStore(Context c){prefs=c.getSharedPreferences("pulse_secure",Context.MODE_PRIVATE);ensureKey();}
+ private void ensureKey(){try{KeyStore ks=KeyStore.getInstance("AndroidKeyStore");ks.load(null);if(!ks.containsAlias(ALIAS)){KeyGenerator kg=KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES,"AndroidKeyStore");kg.init(new KeyGenParameterSpec.Builder(ALIAS,KeyProperties.PURPOSE_ENCRYPT|KeyProperties.PURPOSE_DECRYPT).setBlockModes(KeyProperties.BLOCK_MODE_GCM).setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE).build());kg.generateKey();}}catch(Exception ignored){}}
+ public void put(String key,String value){try{KeyStore ks=KeyStore.getInstance("AndroidKeyStore");ks.load(null);SecretKey sk=(SecretKey)ks.getKey(ALIAS,null);Cipher c=Cipher.getInstance("AES/GCM/NoPadding");c.init(Cipher.ENCRYPT_MODE,sk);String iv=Base64.encodeToString(c.getIV(),Base64.NO_WRAP);String data=Base64.encodeToString(c.doFinal(value.getBytes("UTF-8")),Base64.NO_WRAP);prefs.edit().putString(key,iv+":"+data).apply();}catch(Exception ignored){}}
+ public String get(String key){String s=prefs.getString(key,"");if(s==null||s.isEmpty()||!s.contains(":"))return "";try{String[] p=s.split(":",2);KeyStore ks=KeyStore.getInstance("AndroidKeyStore");ks.load(null);SecretKey sk=(SecretKey)ks.getKey(ALIAS,null);Cipher c=Cipher.getInstance("AES/GCM/NoPadding");c.init(Cipher.DECRYPT_MODE,sk,new GCMParameterSpec(128,Base64.decode(p[0],Base64.NO_WRAP)));return new String(c.doFinal(Base64.decode(p[1],Base64.NO_WRAP)),"UTF-8");}catch(Exception e){return "";}}
+}

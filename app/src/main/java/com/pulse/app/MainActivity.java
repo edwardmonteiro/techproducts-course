@@ -1,0 +1,21 @@
+package com.pulse.app;
+import android.Manifest; import android.app.*; import android.content.*; import android.content.pm.PackageManager; import android.graphics.Color; import android.location.*; import android.os.*; import android.provider.Settings; import android.webkit.*; import org.json.*;
+public class MainActivity extends Activity {
+ private WebView web; private PulseRepository repo; private final Handler handler=new Handler(Looper.getMainLooper()); private double lat=-23.55052,lon=-46.633308;
+ private final Runnable poll=new Runnable(){public void run(){refresh();handler.postDelayed(this,60_000);}};
+ public void onCreate(Bundle b){super.onCreate(b);getWindow().setStatusBarColor(Color.rgb(5,6,7));getWindow().setNavigationBarColor(Color.rgb(5,6,7));repo=new PulseRepository(this);web=new WebView(this);web.setBackgroundColor(Color.rgb(5,6,7));WebSettings s=web.getSettings();s.setJavaScriptEnabled(true);s.setDomStorageEnabled(true);s.setAllowFileAccess(true);s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);web.addJavascriptInterface(new Bridge(),"PulseNative");web.setWebViewClient(new WebViewClient(){public void onPageFinished(WebView v,String url){pushBootstrap();refresh();}});setContentView(web);web.loadUrl("file:///android_asset/index.html");requestLocation();}
+ protected void onResume(){super.onResume();handler.removeCallbacks(poll);handler.postDelayed(poll,60_000);} protected void onPause(){super.onPause();handler.removeCallbacks(poll);}
+ private void requestLocation(){if(Build.VERSION.SDK_INT>=23&&checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION},10);return;}updateLocation();}
+ private void updateLocation(){try{LocationManager lm=(LocationManager)getSystemService(LOCATION_SERVICE);Location best=null;for(String p:lm.getProviders(true)){Location x=lm.getLastKnownLocation(p);if(x!=null&&(best==null||x.getAccuracy()<best.getAccuracy()))best=x;}if(best!=null){lat=best.getLatitude();lon=best.getLongitude();}}catch(Exception ignored){}}
+ public void onRequestPermissionsResult(int r,String[] p,int[] g){super.onRequestPermissionsResult(r,p,g);if(r==10){updateLocation();pushBootstrap();refresh();}if(r==11&&g.length>0&&g[0]==PackageManager.PERMISSION_GRANTED)startActivity(new Intent(this,LensActivity.class));}
+ private void pushBootstrap(){JSONObject o=new JSONObject();try{o.put("lat",lat);o.put("lon",lon);o.put("sptrans",repo.maskedSecret("sptrans"));o.put("openai",repo.maskedSecret("openai"));o.put("latest",new JSONObject(repo.latest()));}catch(Exception ignored){}String js="window.PULSE&&window.PULSE.bootstrap("+o+")";web.post(()->web.evaluateJavascript(js,null));}
+ private void refresh(){updateLocation();new Thread(()->{JSONObject d=repo.refresh(lat,lon);String js="window.PULSE&&window.PULSE.onData("+d+")";web.post(()->web.evaluateJavascript(js,null));}).start();}
+ public class Bridge {
+  @JavascriptInterface public void refresh(){MainActivity.this.refresh();}
+  @JavascriptInterface public String getHistory(int minutes){return repo.history(Math.max(5,Math.min(2880,minutes))).toString();}
+  @JavascriptInterface public void setSecret(String key,String value){if("sptrans".equals(key)||"openai".equals(key)){repo.setSecret(key,value);pushBootstrap();refresh();}}
+  @JavascriptInterface public void openLens(){web.post(()->{if(Build.VERSION.SDK_INT>=23&&checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.CAMERA},11);return;}startActivity(new Intent(MainActivity.this,LensActivity.class));});}
+  @JavascriptInterface public void requestAi(String payload){new Thread(()->{String z=repo.aiSummary(payload);final String msg=(z==null||z.isEmpty())?"Sem chave OpenAI ou sem resposta. O Observer local continua ativo.":z;final String q=JSONObject.quote(msg);web.post(()->web.evaluateJavascript("window.PULSE&&window.PULSE.onAi("+q+")",null));}).start();}
+  @JavascriptInterface public String deviceId(){return Settings.Secure.getString(getContentResolver(),Settings.Secure.ANDROID_ID);}
+ }
+}
