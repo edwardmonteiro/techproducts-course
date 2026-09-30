@@ -2,6 +2,8 @@ name: Build PULSE APK
 on:
   push:
     branches: [ pulse-android-v1 ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
 jobs:
   build:
