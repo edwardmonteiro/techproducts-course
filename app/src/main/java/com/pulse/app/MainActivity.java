@@ -15,7 +15,7 @@ public class MainActivity extends Activity {
   @JavascriptInterface public String getHistory(int minutes){return repo.history(Math.max(5,Math.min(2880,minutes))).toString();}
   @JavascriptInterface public void setSecret(String key,String value){if("sptrans".equals(key)||"openai".equals(key)){repo.setSecret(key,value);pushBootstrap();refresh();}}
   @JavascriptInterface public void openLens(){web.post(()->{if(Build.VERSION.SDK_INT>=23&&checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.CAMERA},11);return;}startActivity(new Intent(MainActivity.this,LensActivity.class));});}
-  @JavascriptInterface public void requestAi(String payload){new Thread(()->{String z=repo.aiSummary(payload);if(z==null||z.isEmpty())z="Sem chave OpenAI ou sem resposta. O Observer local continua ativo.";String q=JSONObject.quote(z);web.post(()->web.evaluateJavascript("window.PULSE&&window.PULSE.onAi("+q+")",null));}).start();}
+  @JavascriptInterface public void requestAi(String payload){new Thread(()->{String z=repo.aiSummary(payload);final String msg=(z==null||z.isEmpty())?"Sem chave OpenAI ou sem resposta. O Observer local continua ativo.":z;final String q=JSONObject.quote(msg);web.post(()->web.evaluateJavascript("window.PULSE&&window.PULSE.onAi("+q+")",null));}).start();}
   @JavascriptInterface public String deviceId(){return Settings.Secure.getString(getContentResolver(),Settings.Secure.ANDROID_ID);}
  }
 }
